@@ -1,7 +1,6 @@
 mod app;
 mod github;
 mod log;
-mod macros;
 
 use crate::app::App;
 use crate::github::events::issues;

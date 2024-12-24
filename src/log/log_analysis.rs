@@ -1,57 +1,110 @@
-use crate::java_like_enum;
 use lazy_static::lazy_static;
 use octocrab::models::issues::{Issue, IssueStateReason};
 use octocrab::models::IssueState;
 use octocrab::Octocrab;
-use regex::{Captures, Regex};
+use regex::Regex;
 use reqwest::Client;
 use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use tracing::error;
 
 lazy_static! {
     static ref URL_REGEX: Regex = Regex::new(r"https?://((www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b)([-a-zA-Z0-9()@:%_+.~#?&/=]*)").unwrap();
     // Used to extract the username/org name and repo name
     static ref GITHUB_REPO_URL_REGEX: Regex = Regex::new(r"https://api\.github\.com/repos/([\w,\-_]+)/([\w,\-_]+)").unwrap();
+
+    static ref NO_AUTH_OCTOCRAB: Octocrab = Octocrab::builder().build().unwrap();
 }
 
-// Replace regex's with groups to get rid of the replace's
-java_like_enum! {
-    pub enum PasteSites(hostname: &'static str, func: Box<fn(&'_ str) -> Option<String>>) {
-        Haste("hst.sh", Box::new(|text| {
-            let regex = Regex::new(r"https://hst\.sh/\w*").unwrap();
+#[derive(EnumIter)]
+enum PasteSites {
+    Gist,
+    Haste,
+    Mclogs,
+    Pastebin,
+}
 
-            regex.captures(text).map(|captures| get_url(captures).replace("hst.sh", "hst.sh/raw"))
-        }));
-        Mclogs("mclo.gs", Box::new(|text| {
-            let regex = Regex::new(r"https://mclo\.gs/\w*").unwrap();
-            
-            regex.captures(text).map(|captures| get_url(captures).replace("mclo.gs", "api.mclo.gs/1/raw"))
-        }));
-        Pastebin("pastebin.com", Box::new(|text| {
-            let regex = Regex::new(r"https://pastebin\.com/\w*").unwrap();
-            
-            regex.captures(text).map(|captures| get_url(captures).replace("pastebin.com", "pastebin.com/raw"))
-        }));
-        //Pastegg("paste.gg", Box::new(|text, https| { Some(text) }));
+impl PasteSites {
+    fn hostname(&self) -> &'static str {
+        match self {
+            PasteSites::Gist => "gist.github.com",
+            PasteSites::Haste => "hst.sh",
+            PasteSites::Mclogs => "mclo.gs",
+            PasteSites::Pastebin => "pastebin.com",
+        }
+    }
+
+    async fn get_raw_url(&self, text: &str) -> Option<String> {
+        return match self {
+            PasteSites::Gist => {
+                let regex =
+                    Regex::new(r"https://gist\.github\.com/[A-Za-z\d-]{0,38}/(\w*)").unwrap();
+
+                let id = regex.captures(text).and_then(|captures| captures.get(1));
+
+                if let Some(id) = id {
+                    if let Ok(gist) = NO_AUTH_OCTOCRAB.gists().get(id.as_str()).await {
+                        return gist
+                            .files
+                            .iter()
+                            .next()
+                            .map(|file| file.1.raw_url.to_string());
+                    }
+                }
+
+                None
+            },
+            PasteSites::Haste => r(text, r"https://hst\.sh/\w*", "hst.sh", "hst.sh/raw"),
+            PasteSites::Mclogs => r(
+                text,
+                r"https://mclo\.gs/\w*",
+                "mclo.gs",
+                "api.mclo.gs/1/raw",
+            ),
+            PasteSites::Pastebin => r(
+                text,
+                r"https://pastebin\.com/\w*",
+                "pastebin.com",
+                "pastebin.com/raw",
+            ),
+        };
+
+        fn r(s: &str, regex: &str, from: &str, to: &str) -> Option<String> {
+            let regex = Regex::new(regex).unwrap();
+
+            regex
+                .captures(s)
+                .and_then(|cap| cap.get(0))
+                .map(|cap| cap.as_str())
+                .map(|url| url.replace(from, to))
+        }
     }
 }
 
+#[allow(dead_code)]
 pub enum AnalyzerResult<'a> {
-    #[allow(dead_code)]
     Reply(&'a str),
+    CloseAsNotPlanned(Option<&'a str>),
     Close(Option<&'a str>),
     None,
 }
 
-java_like_enum! {
-    pub enum Analyzers(func: Box<fn(&'_ str) -> AnalyzerResult<'static>>) {
-        Test(Box::new(|text| {
-            if text.contains("Hello") {
-                return AnalyzerResult::Close(Some("ABC"));
-            }
+#[derive(EnumIter)]
+pub enum Analyzers {
+    Test,
+}
 
-            AnalyzerResult::None
-        }));
+impl Analyzers {
+    fn get_result(&self, text: &str) -> AnalyzerResult {
+        match self {
+            Analyzers::Test => {
+                if text.contains("Hello") {
+                    return AnalyzerResult::CloseAsNotPlanned(Some("ABC"));
+                }
+
+                AnalyzerResult::None
+            },
+        }
     }
 }
 
@@ -74,31 +127,22 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) {
 
     let Some(body) = issue.body else { return };
 
-    #[rustfmt::skip]
-    let Some(url) = URL_REGEX.captures(&body)
+    let Some(site) = URL_REGEX
+        .captures(&body)
         .and_then(|captures| captures.get(1))
-        .and_then(|hostname| {
-            for site in PasteSites::iter() {
-                if site.hostname() == hostname.as_str() {
-                    return Some(site.func());
-                }
-            }
+        .and_then(|hostname| PasteSites::iter().find(|site| site.hostname() == hostname.as_str()))
+    else {
+        return;
+    };
 
-            None
-        })
-        .and_then(|func| func(&body)) else { return };
+    let Some(url) = site.get_raw_url(&body).await else {
+        return;
+    };
 
-    #[rustfmt::skip]
-    let text = https.get(url)
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
+    let text = https.get(url).send().await.unwrap().text().await.unwrap();
 
     for analyzer in Analyzers::iter() {
-        let result = analyzer.func()(&text);
+        let result = analyzer.get_result(&text);
 
         match result {
             AnalyzerResult::Reply(message) => {
@@ -110,7 +154,7 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) {
 
                 break;
             },
-            AnalyzerResult::Close(message) => {
+            AnalyzerResult::Close(message) | AnalyzerResult::CloseAsNotPlanned(message) => {
                 if let Some(message) = message {
                     let result = issue_handler.create_comment(issue.number, message).await;
 
@@ -119,10 +163,16 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) {
                     }
                 }
 
+                let reason = if matches!(result, AnalyzerResult::CloseAsNotPlanned(_)) {
+                    IssueStateReason::NotPlanned
+                } else {
+                    IssueStateReason::Completed
+                };
+
                 let result = issue_handler
                     .update(issue.number)
                     .state(IssueState::Closed)
-                    .state_reason(IssueStateReason::NotPlanned)
+                    .state_reason(reason)
                     .send()
                     .await;
 
@@ -135,8 +185,4 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) {
             AnalyzerResult::None => {},
         }
     }
-}
-
-fn get_url(captures: Captures) -> String {
-    captures.get(0).unwrap().as_str().to_string()
 }
