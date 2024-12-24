@@ -4,3 +4,21 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+axum = "0.7.9"
+tokio = { version = "1.42.0", features = ["full"] }
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
+dotenvy = "0.15.7"
+tower-http = { version = "0.6.2", features = ["trace"] }
+octocrab = "0.42.1"
+axum-github-webhook-extract = "0.2.0"
+serde = { version = "1.0.216", features = ["derive"] }
+serde_json = "1.0.133"
+jsonwebtoken = "9.3.0"
+anyhow = "1.0.94"
+strum_macros = "0.26.4"
+strum = "0.26.3"
+reqwest = "0.12.9"
+regex = "1.11.1"
+lazy_static = "1.5.0"
+axum-macros = "0.4.2"
