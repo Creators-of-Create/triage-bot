@@ -43,12 +43,15 @@ impl PasteSites {
                 let id = regex.captures(text).and_then(|captures| captures.get(1));
 
                 if let Some(id) = id {
-                    if let Ok(gist) = NO_AUTH_OCTOCRAB.gists().get(id.as_str()).await {
-                        return gist
-                            .files
-                            .iter()
-                            .next()
-                            .map(|file| file.1.raw_url.to_string());
+                    match NO_AUTH_OCTOCRAB.gists().get(id.as_str()).await {
+                        Ok(gist) => {
+                            return gist
+                                .files
+                                .iter()
+                                .next()
+                                .map(|file| file.1.raw_url.to_string());
+                        },
+                        Err(e) => error!(%e, "Error occurred while fetching raw url for gist"),
                     }
                 }
 
