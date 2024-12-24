@@ -142,7 +142,14 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) {
         return;
     };
 
-    let text = https.get(url).send().await.unwrap().text().await.unwrap();
+    #[rustfmt::skip]
+    let text = https.get(url)
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
 
     for analyzer in Analyzers::iter() {
         let result = analyzer.get_result(&text);
