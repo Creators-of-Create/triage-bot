@@ -70,7 +70,7 @@ async fn github_webhook(
         WebhookEventPayload::Issues(p) => issues::handle(p, &app.https, &app.octocrab).await,
         _ => Ok(()),
     };
-    
+
     if let Err(e) = result {
         error!(%e, "Error occurred while handling event");
     }

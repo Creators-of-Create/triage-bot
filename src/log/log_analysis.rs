@@ -127,7 +127,9 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
 
     let issue_handler = installation_handler.issues(owner, repo);
 
-    let Some(body) = issue.body else { return Ok(()) };
+    let Some(body) = issue.body else {
+        return Ok(());
+    };
 
     let Some(site) = URL_REGEX
         .captures(&body)
@@ -153,7 +155,7 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
 
         match result {
             AnalyzerResult::Reply(message) => {
-               issue_handler.create_comment(issue.number, message).await?;
+                issue_handler.create_comment(issue.number, message).await?;
 
                 break;
             },
@@ -180,6 +182,6 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
             AnalyzerResult::None => {},
         }
     }
-    
+
     Ok(())
 }

@@ -5,7 +5,11 @@ use octocrab::models::webhook_events::payload::{
 use octocrab::Octocrab;
 use reqwest::Client;
 
-pub async fn handle(payload: Box<IssuesWebhookEventPayload>, https: &Client, octocrab: &Octocrab) -> anyhow::Result<()> {
+pub async fn handle(
+    payload: Box<IssuesWebhookEventPayload>,
+    https: &Client,
+    octocrab: &Octocrab,
+) -> anyhow::Result<()> {
     match payload.action {
         IssuesWebhookEventAction::Opened | IssuesWebhookEventAction::Edited => {
             run_analyzer(payload.issue, https, octocrab).await
