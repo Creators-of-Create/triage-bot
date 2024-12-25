@@ -111,7 +111,7 @@ impl Analyzers {
     }
 }
 
-pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) {
+pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> anyhow::Result<()> {
     let repo_url = &issue.repository_url.to_string();
     let captures = GITHUB_REPO_URL_REGEX.captures(repo_url).unwrap();
 
@@ -121,56 +121,45 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) {
     let installation = octocrab
         .apps()
         .get_repository_installation(owner, repo)
-        .await
-        .unwrap();
+        .await?;
 
-    let installation_handler = octocrab.installation(installation.id).unwrap();
+    let installation_handler = octocrab.installation(installation.id)?;
 
     let issue_handler = installation_handler.issues(owner, repo);
 
-    let Some(body) = issue.body else { return };
+    let Some(body) = issue.body else { return Ok(()) };
 
     let Some(site) = URL_REGEX
         .captures(&body)
         .and_then(|captures| captures.get(1))
         .and_then(|hostname| PasteSites::iter().find(|site| site.hostname() == hostname.as_str()))
     else {
-        return;
+        return Ok(());
     };
 
     let Some(url) = site.get_raw_url(&body).await else {
-        return;
+        return Ok(());
     };
 
     #[rustfmt::skip]
     let text = https.get(url)
         .send()
-        .await
-        .unwrap()
+        .await?
         .text()
-        .await
-        .unwrap();
+        .await?;
 
     for analyzer in Analyzers::iter() {
         let result = analyzer.get_result(&text);
 
         match result {
             AnalyzerResult::Reply(message) => {
-                let result = issue_handler.create_comment(issue.number, message).await;
-
-                if let Err(err) = result {
-                    error!(%err, "Error while commenting on github issue");
-                }
+               issue_handler.create_comment(issue.number, message).await?;
 
                 break;
             },
             AnalyzerResult::Close(message) | AnalyzerResult::CloseAsNotPlanned(message) => {
                 if let Some(message) = message {
-                    let result = issue_handler.create_comment(issue.number, message).await;
-
-                    if let Err(err) = result {
-                        error!(%err, "Error while commenting on github issue");
-                    }
+                    issue_handler.create_comment(issue.number, message).await?;
                 }
 
                 let reason = if matches!(result, AnalyzerResult::CloseAsNotPlanned(_)) {
@@ -179,20 +168,18 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) {
                     IssueStateReason::Completed
                 };
 
-                let result = issue_handler
+                issue_handler
                     .update(issue.number)
                     .state(IssueState::Closed)
                     .state_reason(reason)
                     .send()
-                    .await;
-
-                if let Err(err) = result {
-                    error!(%err, "Error while closing github issue")
-                }
+                    .await?;
 
                 break;
             },
             AnalyzerResult::None => {},
         }
     }
+    
+    Ok(())
 }

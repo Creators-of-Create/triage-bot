@@ -66,8 +66,12 @@ async fn github_webhook(
     };
 
     #[allow(clippy::single_match)]
-    match event.specific {
+    let result = match event.specific {
         WebhookEventPayload::Issues(p) => issues::handle(p, &app.https, &app.octocrab).await,
-        _ => {},
+        _ => Ok(()),
+    };
+    
+    if let Err(e) = result {
+        error!(%e, "Error occurred while handling event");
     }
 }
