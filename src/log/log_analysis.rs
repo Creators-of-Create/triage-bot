@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use octocrab::models::issues::IssueStateReason::{Completed, NotPlanned};
 use octocrab::models::issues::{Issue, IssueStateReason};
 use octocrab::models::IssueState;
 use octocrab::Octocrab;
@@ -84,12 +85,46 @@ impl PasteSites {
     }
 }
 
-#[allow(dead_code)]
-pub enum AnalyzerResult<'a> {
-    Reply(&'a str),
-    CloseAsNotPlanned(Option<&'a str>),
-    Close(Option<&'a str>),
-    None,
+pub struct AnalyzerResult<'a, 'b> {
+    reply: Option<&'a str>,
+    close: bool,
+    close_reason: IssueStateReason,
+    labels: Option<&'b [String]>,
+}
+
+impl<'a, 'b> AnalyzerResult<'a, 'b> {
+    pub fn new() -> Self {
+        Self {
+            reply: None,
+            close: false,
+            close_reason: Completed,
+            labels: None,
+        }
+    }
+
+    pub fn reply(mut self, reply: &'a str) -> Self {
+        self.reply = Some(reply);
+        self
+    }
+
+    pub fn close(mut self) -> Self {
+        self.close = true;
+        self
+    }
+
+    pub fn close_reason(mut self, close_reason: IssueStateReason) -> Self {
+        self.close_reason = close_reason;
+        self
+    }
+
+    pub fn labels(mut self, labels: &'b [String]) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+
+    pub fn build(self) -> Self {
+        self
+    }
 }
 
 #[derive(EnumIter)]
@@ -101,11 +136,13 @@ impl Analyzers {
     fn get_result(&self, text: &str) -> AnalyzerResult {
         match self {
             Analyzers::Test => {
+                let result = AnalyzerResult::new();
+
                 if text.contains("Hello") {
-                    return AnalyzerResult::CloseAsNotPlanned(Some("ABC"));
+                    return result.close().close_reason(NotPlanned).reply("ABC").build();
                 }
 
-                AnalyzerResult::None
+                result.build()
             },
         }
     }
@@ -153,33 +190,25 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
     for analyzer in Analyzers::iter() {
         let result = analyzer.get_result(&text);
 
-        match result {
-            AnalyzerResult::Reply(message) => {
-                issue_handler.create_comment(issue.number, message).await?;
+        if let Some(labels) = result.labels {
+            issue_handler
+                .update(issue.number)
+                .labels(labels)
+                .send()
+                .await?;
+        }
 
-                break;
-            },
-            AnalyzerResult::Close(message) | AnalyzerResult::CloseAsNotPlanned(message) => {
-                if let Some(message) = message {
-                    issue_handler.create_comment(issue.number, message).await?;
-                }
+        if let Some(message) = result.reply {
+            issue_handler.create_comment(issue.number, message).await?;
+        }
 
-                let reason = if matches!(result, AnalyzerResult::CloseAsNotPlanned(_)) {
-                    IssueStateReason::NotPlanned
-                } else {
-                    IssueStateReason::Completed
-                };
-
-                issue_handler
-                    .update(issue.number)
-                    .state(IssueState::Closed)
-                    .state_reason(reason)
-                    .send()
-                    .await?;
-
-                break;
-            },
-            AnalyzerResult::None => {},
+        if result.close {
+            issue_handler
+                .update(issue.number)
+                .state(IssueState::Closed)
+                .state_reason(result.close_reason)
+                .send()
+                .await?;
         }
     }
 
