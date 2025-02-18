@@ -11,7 +11,7 @@ tracing-subscriber = "0.3.19"
 dotenvy = "0.15.7"
 tower-http = { version = "0.6.2", features = ["trace"] }
 octocrab = "0.43.0"
-axum-github-webhook-extract = "0.2.0"
+axum-github-webhook-extract = { git = "https://github.com/daaku/axum-github-webhook-extract.git", rev = "76fcdf094648322e9b31e66a2ad8d5d5043eeb3f" }
 serde = { version = "1.0.216", features = ["derive"] }
 serde_json = "1.0.133"
 jsonwebtoken = "9.3.0"
