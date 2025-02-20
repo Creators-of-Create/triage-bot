@@ -13,16 +13,13 @@ use octocrab::models::webhook_events::{WebhookEvent, WebhookEventPayload};
 use std::env;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
-use tracing::{error, info, Level};
+use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_max_level(if cfg!(debug_assertions) {
-            Level::DEBUG
-        } else {
-            Level::INFO
-        })
+        .with_env_filter(EnvFilter::from_default_env())
         .init();
 
     dotenvy::dotenv().ok();

@@ -97,7 +97,7 @@ impl Analyzers {
             Analyzers::Test => {
                 let result = AnalyzerResult::new();
 
-                if text.contains("Hello") {
+                if text.contains("TESTING#####TEXT") {
                     return result.close().close_reason(NotPlanned).reply("ABC").build();
                 }
 
