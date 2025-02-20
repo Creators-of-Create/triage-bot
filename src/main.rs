@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
         .expect("Missing GITHUB_WEBHOOK_SECRET Environment Variable");
 
     let router = Router::new()
-        .route("/webhook/github", post(github_webhook))
+        .route("/triagebot/webhook/github", post(github_webhook))
         .layer(TraceLayer::new_for_http())
         .with_state(App::new(GithubToken(Arc::new(github_secret))));
 
