@@ -16,6 +16,10 @@ lazy_static! {
     static ref GITHUB_REPO_URL_REGEX: Regex = Regex::new(r"https://api\.github\.com/repos/([\w,\-_]+)/([\w,\-_]+)").unwrap();
 
     static ref NO_AUTH_OCTOCRAB: Octocrab = Octocrab::builder().build().unwrap();
+    
+    // ---
+    
+    static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"Caused by: java.lang.NoClassDefFoundError: com/simibubi/create/.*\n.*TRANSFORMER/([a-z][a-z0-9_]{1,63})@").unwrap();
 }
 
 #[derive(EnumIter)]
@@ -88,20 +92,27 @@ impl PasteSites {
 
 #[derive(EnumIter)]
 pub enum Analyzers {
-    Test,
+    MissingCreateClass,
 }
 
 impl Analyzers {
-    fn get_result(&self, text: &str) -> AnalyzerResult {
+    fn get_result(&self, text: &str) -> Option<AnalyzerResult> {
         match self {
-            Analyzers::Test => {
-                let result = AnalyzerResult::new();
-
-                if text.contains("TESTING#####TEXT") {
-                    return result.close().close_reason(NotPlanned).reply("ABC").build();
-                }
-
-                result.build()
+            Analyzers::MissingCreateClass => {
+                MISSING_CREATE_CLASS_REGEX
+                    .captures(text)
+                    .and_then(|captures| captures.get(1))
+                    .map(|mod_id| {
+                        let mod_id = mod_id.as_str();
+                        let r = format!("{} is trying to use Create classes that no longer exist, the mod developer for {} will have to update their mod to fix this.", mod_id, mod_id);
+                        
+                        AnalyzerResult::new()
+                            .close()
+                            .close_reason(NotPlanned)
+                            .labels(Box::from(["wrong repo: other mod".to_string()]))
+                            .reply(r)
+                            .build()
+                    })
             },
         }
     }
@@ -148,26 +159,28 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
 
     for analyzer in Analyzers::iter() {
         let result = analyzer.get_result(&text);
+        
+        if let Some(result) = result {
+            if let Some(labels) = result.labels {
+                issue_handler
+                    .update(issue.number)
+                    .labels(&labels)
+                    .send()
+                    .await?;
+            }
 
-        if let Some(labels) = result.labels {
-            issue_handler
-                .update(issue.number)
-                .labels(labels)
-                .send()
-                .await?;
-        }
+            if let Some(message) = result.reply {
+                issue_handler.create_comment(issue.number, message).await?;
+            }
 
-        if let Some(message) = result.reply {
-            issue_handler.create_comment(issue.number, message).await?;
-        }
-
-        if result.close {
-            issue_handler
-                .update(issue.number)
-                .state(IssueState::Closed)
-                .state_reason(result.close_reason)
-                .send()
-                .await?;
+            if result.close {
+                issue_handler
+                    .update(issue.number)
+                    .state(IssueState::Closed)
+                    .state_reason(result.close_reason)
+                    .send()
+                    .await?;
+            }
         }
     }
 

@@ -1,15 +1,15 @@
 use octocrab::models::issues::IssueStateReason;
 use octocrab::models::issues::IssueStateReason::Completed;
 
-pub struct AnalyzerResult<'a, 'b> {
-    pub reply: Option<&'a str>,
+pub struct AnalyzerResult {
+    pub reply: Option<String>,
     pub close: bool,
     pub close_reason: IssueStateReason,
-    pub labels: Option<&'b [String]>,
+    pub labels: Option<Box<[String]>>,
 }
 
 #[allow(dead_code)]
-impl<'a, 'b> AnalyzerResult<'a, 'b> {
+impl AnalyzerResult {
     pub fn new() -> Self {
         Self {
             reply: None,
@@ -19,7 +19,7 @@ impl<'a, 'b> AnalyzerResult<'a, 'b> {
         }
     }
 
-    pub fn reply(mut self, reply: &'a str) -> Self {
+    pub fn reply(mut self, reply: String) -> Self {
         self.reply = Some(reply);
         self
     }
@@ -34,7 +34,7 @@ impl<'a, 'b> AnalyzerResult<'a, 'b> {
         self
     }
 
-    pub fn labels(mut self, labels: &'b [String]) -> Self {
+    pub fn labels(mut self, labels: Box<[String]>) -> Self {
         self.labels = Some(labels);
         self
     }
