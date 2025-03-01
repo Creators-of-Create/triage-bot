@@ -20,6 +20,7 @@ lazy_static! {
     // ---
     
     static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"java.lang.NoClassDefFoundError: com/simibubi/create/.*\n.*TRANSFORMER/([a-z][a-z0-9_]{1,63})@").unwrap();
+    static ref OUTDATED_FLYWHEEL_VERSION_REGEX: Regex = Regex::new(r"Mod ID: 'flywheel', Requested by: 'create', Expected range: '\[1\.0\.0.*,2\.0\)', Actual version: '0\.6\.11-13'").unwrap();
 }
 
 #[derive(EnumIter)]
@@ -93,6 +94,7 @@ impl PasteSites {
 #[derive(EnumIter)]
 pub enum Analyzers {
     MissingCreateClass,
+    OutdatedFlywheelVersion,
 }
 
 impl Analyzers {
@@ -114,6 +116,18 @@ impl Analyzers {
                             .build()
                     })
             },
+            Analyzers::OutdatedFlywheelVersion => {
+                if OUTDATED_FLYWHEEL_VERSION_REGEX.is_match(text) {
+                    return Some(AnalyzerResult::new()
+                        .close()
+                        .close_reason(NotPlanned)
+                        .labels(vec!["wrong repo: other mod"])
+                        .reply("You have a mod that bundles a older version of a library Create uses called flywheel, you'll need to wait for that mod's developer to update their mod. (Mods known to bundle a older version of flywheel are: Supplementaries, Amendments and Effortless Building)".to_string())
+                        .build())
+                }
+                
+                None
+            }
         }
     }
 }
