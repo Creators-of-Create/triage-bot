@@ -8,7 +8,7 @@ use regex::Regex;
 use reqwest::Client;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use tracing::error;
+use tracing::{debug, error};
 
 lazy_static! {
     static ref URL_REGEX: Regex = Regex::new(r"https?://((www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b)([-a-zA-Z0-9()@:%_+.~#?&/=]*)").unwrap();
@@ -119,6 +119,8 @@ impl Analyzers {
 }
 
 pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> anyhow::Result<()> {
+    debug!("Running analyzer for issue: {:?}", issue.id);
+    
     let repo_url = &issue.repository_url.to_string();
     let captures = GITHUB_REPO_URL_REGEX.captures(repo_url).unwrap();
 
@@ -149,6 +151,8 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
     let Some(url) = site.get_raw_url(&body).await else {
         return Ok(());
     };
+
+    debug!("Found url: {}", url);
 
     #[rustfmt::skip]
     let text = https.get(url)
@@ -181,6 +185,8 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
                     .send()
                     .await?;
             }
+            
+            debug!("Ran analyzer that matched this issue!")
         }
     }
 

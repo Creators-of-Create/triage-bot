@@ -13,7 +13,7 @@ use octocrab::models::webhook_events::{WebhookEvent, WebhookEventPayload};
 use std::env;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -61,6 +61,8 @@ async fn github_webhook(
             return;
         },
     };
+    
+    debug!("Got event: {:?}", event);
 
     #[allow(clippy::single_match)]
     let result = match event.specific {
