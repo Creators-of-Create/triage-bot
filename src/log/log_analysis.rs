@@ -104,7 +104,7 @@ impl Analyzers {
                     .and_then(|captures| captures.get(1))
                     .map(|mod_id| {
                         let mod_id = mod_id.as_str();
-                        let r = format!("{} is trying to use Create classes that no longer exist, the mod developer for {} will have to update their mod to fix this.", mod_id, mod_id);
+                        let r = format!("The mod `{}` is trying to use Create classes that no longer exist, the developer for `{}` will have to update their mod to fix this.", mod_id, mod_id);
                         
                         AnalyzerResult::new()
                             .close()
