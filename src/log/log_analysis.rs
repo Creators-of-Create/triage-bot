@@ -109,7 +109,7 @@ impl Analyzers {
                         AnalyzerResult::new()
                             .close()
                             .close_reason(NotPlanned)
-                            .labels(Box::from(["wrong repo: other mod".to_string()]))
+                            .labels(vec!["wrong repo: other mod"])
                             .reply(r)
                             .build()
                     })
@@ -166,9 +166,19 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
         
         if let Some(result) = result {
             if let Some(labels) = result.labels {
+                let mut final_labels: Vec<String> = Vec::new();
+
+                for label in &labels {
+                    final_labels.push(label.to_string());
+                }
+
+                for label in &issue.labels {
+                    final_labels.push(label.clone().name);
+                }
+
                 issue_handler
                     .update(issue.number)
-                    .labels(&labels)
+                    .labels(&final_labels)
                     .send()
                     .await?;
             }
