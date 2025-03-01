@@ -19,7 +19,7 @@ lazy_static! {
     
     // ---
     
-    static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"Caused by: java.lang.NoClassDefFoundError: com/simibubi/create/.*\n.*TRANSFORMER/([a-z][a-z0-9_]{1,63})@").unwrap();
+    static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"java.lang.NoClassDefFoundError: com/simibubi/create/.*\n.*TRANSFORMER/([a-z][a-z0-9_]{1,63})@").unwrap();
 }
 
 #[derive(EnumIter)]
