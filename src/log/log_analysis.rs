@@ -19,7 +19,7 @@ lazy_static! {
     
     // ---
     
-    static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"java\.lang\.NoClassDefFoundError: com/simibubi/create/.*\n.*(?:TRANSFORMER/([a-z][a-z0-9_]{1,63})@|at .*~\[([a-z][a-z0-9_]{1,63})-.*jar)").unwrap();
+    static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"java\.lang\.NoClassDefFoundError: com/simibubi/create/.*\n.*(?:TRANSFORMER/([a-z][a-z0-9_]{1,63})@|at .*~\[([a-zA-Z0-9_]*)-.*jar)").unwrap();
     static ref OUTDATED_FLYWHEEL_VERSION_REGEX: Regex = Regex::new(r"Mod ID: 'flywheel', Requested by: 'create', Expected range: '\[1\.0\.0.*,2\.0\)', Actual version: '0\.6\.11-13'").unwrap();
 }
 
