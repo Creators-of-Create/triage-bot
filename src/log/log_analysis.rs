@@ -4,7 +4,7 @@ use octocrab::models::issues::Issue;
 use octocrab::models::issues::IssueStateReason::NotPlanned;
 use octocrab::models::IssueState;
 use octocrab::Octocrab;
-use regex::Regex;
+use fancy_regex::Regex;
 use reqwest::Client;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -19,7 +19,7 @@ lazy_static! {
     
     // ---
     
-    static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"java\.lang\.NoClassDefFoundError: com/simibubi/create/.*\n.*(?:TRANSFORMER/([a-z][a-z0-9_]{1,63})@|at .*~\[([a-zA-Z0-9_]*)-.*jar)").unwrap();
+    static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"java\.lang\.NoClassDefFoundError: com/simibubi/create/.*\n.*(?:TRANSFORMER/([a-z][a-z0-9_]{1,63})@|at .*~\[(?!javafmllanguage)([a-zA-Z0-9_]*)-.*jar)").unwrap();
     static ref OUTDATED_FLYWHEEL_VERSION_REGEX: Regex = Regex::new(r"Mod ID: 'flywheel', Requested by: 'create', Expected range: '\[1\.0\.0.*,2\.0\)', Actual version: '0\.6\.11-13'").unwrap();
 }
 
@@ -47,7 +47,9 @@ impl PasteSites {
                 let regex =
                     Regex::new(r"https://gist\.github\.com/[A-Za-z\d-]{0,38}/(\w*)").unwrap();
 
-                let id = regex.captures(text).and_then(|captures| captures.get(1));
+                let id = regex.captures(text).ok()
+                    .flatten()
+                    .and_then(|captures| captures.get(1));
 
                 if let Some(id) = id {
                     match NO_AUTH_OCTOCRAB.gists().get(id.as_str()).await {
@@ -83,7 +85,8 @@ impl PasteSites {
             let regex = Regex::new(regex).unwrap();
 
             regex
-                .captures(s)
+                .captures(s).ok()
+                .flatten()
                 .and_then(|cap| cap.get(0))
                 .map(|cap| cap.as_str())
                 .map(|url| url.replace(from, to))
@@ -102,7 +105,8 @@ impl Analyzers {
         match self {
             Analyzers::MissingCreateClass => {
                 MISSING_CREATE_CLASS_REGEX
-                    .captures(text)
+                    .captures(text).ok()
+                    .flatten()
                     .and_then(|captures| captures.get(1))
                     .map(|mod_id| {
                         let mod_id = mod_id.as_str();
@@ -117,7 +121,7 @@ impl Analyzers {
                     })
             },
             Analyzers::OutdatedFlywheelVersion => {
-                if OUTDATED_FLYWHEEL_VERSION_REGEX.is_match(text) {
+                if OUTDATED_FLYWHEEL_VERSION_REGEX.is_match(text).is_ok() {
                     return Some(AnalyzerResult::new()
                         .close()
                         .close_reason(NotPlanned)
@@ -136,7 +140,7 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
     debug!("Running analyzer for issue: {:?}", issue.id);
     
     let repo_url = &issue.repository_url.to_string();
-    let captures = GITHUB_REPO_URL_REGEX.captures(repo_url).unwrap();
+    let captures = GITHUB_REPO_URL_REGEX.captures(repo_url)?.unwrap();
 
     let owner = captures.get(1).unwrap().as_str();
     let repo = captures.get(2).unwrap().as_str();
@@ -155,7 +159,8 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
     };
 
     let Some(site) = URL_REGEX
-        .captures(&body)
+        .captures(&body).ok()
+        .flatten()
         .and_then(|captures| captures.get(1))
         .and_then(|hostname| PasteSites::iter().find(|site| site.hostname() == hostname.as_str()))
     else {
