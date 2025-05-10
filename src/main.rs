@@ -1,8 +1,10 @@
 mod app;
 mod github;
 mod log;
+mod utils;
 
 use crate::app::App;
+use crate::github::events::issue_comment;
 use crate::github::events::issues;
 use axum::extract::State;
 use axum::http::HeaderMap;
@@ -18,17 +20,17 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    dotenvy::dotenv().ok();
+
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
-
-    dotenvy::dotenv().ok();
 
     let github_secret = env::var("GITHUB_WEBHOOK_SECRET")
         .expect("Missing GITHUB_WEBHOOK_SECRET Environment Variable");
 
     let router = Router::new()
-        .route("/triagebot/webhook/github", post(github_webhook))
+        .route("/webhook/github", post(github_webhook))
         .layer(TraceLayer::new_for_http())
         .with_state(App::new(GithubToken(Arc::new(github_secret))));
 
@@ -61,12 +63,15 @@ async fn github_webhook(
             return;
         },
     };
-    
+
     debug!("Got event: {:?}", event);
 
     #[allow(clippy::single_match)]
     let result = match event.specific {
         WebhookEventPayload::Issues(p) => issues::handle(p, &app.https, &app.octocrab).await,
+        WebhookEventPayload::IssueComment(p) => {
+            issue_comment::handle(p, &app.https, &app.octocrab).await
+        },
         _ => Ok(()),
     };
 

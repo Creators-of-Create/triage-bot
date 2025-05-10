@@ -1,10 +1,11 @@
 use crate::log::analyzer_result::AnalyzerResult;
+use crate::utils::extract_owner_and_repo;
+use fancy_regex::Regex;
 use lazy_static::lazy_static;
 use octocrab::models::issues::Issue;
 use octocrab::models::issues::IssueStateReason::NotPlanned;
 use octocrab::models::IssueState;
 use octocrab::Octocrab;
-use fancy_regex::Regex;
 use reqwest::Client;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -12,13 +13,11 @@ use tracing::{debug, error};
 
 lazy_static! {
     static ref URL_REGEX: Regex = Regex::new(r"https?://((www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b)([-a-zA-Z0-9()@:%_+.~#?&/=]*)").unwrap();
-    // Used to extract the username/org name and repo name
-    static ref GITHUB_REPO_URL_REGEX: Regex = Regex::new(r"https://api\.github\.com/repos/([\w,\-_]+)/([\w,\-_]+)").unwrap();
 
     static ref NO_AUTH_OCTOCRAB: Octocrab = Octocrab::builder().build().unwrap();
-    
+
     // ---
-    
+
     static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"java\.lang\.NoClassDefFoundError: com/simibubi/create/.*\n.*(?:TRANSFORMER/([a-z][a-z0-9_]{1,63})@|at .*~\[(?!javafmllanguage)([a-zA-Z0-9_]*)-.*jar)").unwrap();
 }
 
@@ -46,7 +45,9 @@ impl PasteSites {
                 let regex =
                     Regex::new(r"https://gist\.github\.com/[A-Za-z\d-]{0,38}/(\w*)").unwrap();
 
-                let id = regex.captures(text).ok()
+                let id = regex
+                    .captures(text)
+                    .ok()
                     .flatten()
                     .and_then(|captures| captures.get(1));
 
@@ -84,7 +85,8 @@ impl PasteSites {
             let regex = Regex::new(regex).unwrap();
 
             regex
-                .captures(s).ok()
+                .captures(s)
+                .ok()
                 .flatten()
                 .and_then(|cap| cap.get(0))
                 .map(|cap| cap.as_str())
@@ -109,7 +111,7 @@ impl Analyzers {
                     .map(|mod_id| {
                         let mod_id = mod_id.as_str();
                         let r = format!("The mod `{}` is trying to use Create classes that no longer exist, the developer for `{}` will have to update their mod to fix this.", mod_id, mod_id);
-                        
+
                         AnalyzerResult::new()
                             .close()
                             .close_reason(NotPlanned)
@@ -124,16 +126,12 @@ impl Analyzers {
 
 pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> anyhow::Result<()> {
     debug!("Running analyzer for issue: {:?}", issue.id);
-    
-    let repo_url = &issue.repository_url.to_string();
-    let captures = GITHUB_REPO_URL_REGEX.captures(repo_url)?.unwrap();
 
-    let owner = captures.get(1).unwrap().as_str();
-    let repo = captures.get(2).unwrap().as_str();
+    let (owner, repo) = extract_owner_and_repo(issue.repository_url).unwrap();
 
     let installation = octocrab
         .apps()
-        .get_repository_installation(owner, repo)
+        .get_repository_installation(&owner, &repo)
         .await?;
 
     let installation_handler = octocrab.installation(installation.id)?;
@@ -145,7 +143,8 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
     };
 
     let Some(site) = URL_REGEX
-        .captures(&body).ok()
+        .captures(&body)
+        .ok()
         .flatten()
         .and_then(|captures| captures.get(1))
         .and_then(|hostname| PasteSites::iter().find(|site| site.hostname() == hostname.as_str()))
@@ -168,7 +167,7 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
 
     for analyzer in Analyzers::iter() {
         let result = analyzer.get_result(&text);
-        
+
         if let Some(result) = result {
             if let Some(labels) = result.labels {
                 let mut final_labels: Vec<String> = Vec::new();
@@ -200,7 +199,7 @@ pub async fn run_analyzer(issue: Issue, https: &Client, octocrab: &Octocrab) -> 
                     .send()
                     .await?;
             }
-            
+
             debug!("Ran analyzer that matched this issue!")
         }
     }

@@ -5,7 +5,7 @@ pub struct AnalyzerResult {
     pub reply: Option<String>,
     pub close: bool,
     pub close_reason: IssueStateReason,
-    pub labels:Option<Vec<String>>,
+    pub labels: Option<Vec<String>>,
 }
 
 #[allow(dead_code)]
@@ -36,11 +36,11 @@ impl AnalyzerResult {
 
     pub fn labels(mut self, labels: Vec<&str>) -> Self {
         let mut final_labels: Vec<String> = Vec::new();
-        
+
         for label in labels {
             final_labels.push(label.to_string());
         }
-        
+
         self.labels = Some(final_labels);
         self
     }
