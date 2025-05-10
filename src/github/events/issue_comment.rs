@@ -1,5 +1,4 @@
 use crate::utils::extract_owner_and_repo;
-use anyhow::anyhow;
 use chrono::{DateTime, Duration, Utc};
 use hex_literal::hex;
 use octocrab::models::webhook_events::payload::{
@@ -9,7 +8,6 @@ use octocrab::Octocrab;
 use reqwest::Client;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use tracing::error;
 
 pub async fn handle(
     payload: Box<IssueCommentWebhookEventPayload>,
