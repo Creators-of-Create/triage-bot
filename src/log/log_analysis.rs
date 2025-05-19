@@ -98,6 +98,7 @@ impl PasteSites {
 #[derive(EnumIter)]
 pub enum Analyzers {
     MissingCreateClass,
+    UsingPojavLauncher,
 }
 
 impl Analyzers {
@@ -119,6 +120,15 @@ impl Analyzers {
                             .reply(r)
                             .build()
                     })
+            },
+            Analyzers::UsingPojavLauncher => {
+                if text.contains("PojavLauncher Detected: true") {
+                    Some(AnalyzerResult::new()
+                        .labels(vec!["env: pojav"])
+                        .build())
+                } else {
+                    None
+                }
             }
         }
     }
