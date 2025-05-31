@@ -14,8 +14,6 @@ use tracing::{debug, error};
 lazy_static! {
     static ref URL_REGEX: Regex = Regex::new(r"https?://((www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b)([-a-zA-Z0-9()@:%_+.~#?&/=]*)").unwrap();
 
-    static ref NO_AUTH_OCTOCRAB: Octocrab = Octocrab::builder().build().unwrap();
-
     // ---
 
     static ref MISSING_CREATE_CLASS_REGEX: Regex = Regex::new(r"java\.lang\.NoClassDefFoundError: com/simibubi/create/.*\n.*(?:TRANSFORMER/([a-z][a-z0-9_]{1,63})@|at .*~\[(?!javafmllanguage)([a-zA-Z0-9_]*)-.*jar)").unwrap();
@@ -52,7 +50,7 @@ impl PasteSites {
                     .and_then(|captures| captures.get(1));
 
                 if let Some(id) = id {
-                    match NO_AUTH_OCTOCRAB.gists().get(id.as_str()).await {
+                    match octocrab::instance().gists().get(id.as_str()).await {
                         Ok(gist) => {
                             return gist
                                 .files
