@@ -7,8 +7,8 @@ use crate::app::App;
 use crate::github::events::issue_comment;
 use crate::github::events::issues;
 use axum::extract::State;
-use axum::http::HeaderMap;
-use axum::routing::post;
+use axum::http::{HeaderMap, StatusCode};
+use axum::routing::{get, post};
 use axum::Router;
 use axum_github_webhook_extract::{GithubEvent, GithubToken};
 use octocrab::models::webhook_events::{WebhookEvent, WebhookEventPayload};
@@ -30,6 +30,7 @@ async fn main() -> anyhow::Result<()> {
         .expect("Missing GITHUB_WEBHOOK_SECRET Environment Variable");
 
     let router = Router::new()
+        .route("/status", get(|| async { StatusCode::OK }))
         .route("/webhook/github", post(github_webhook))
         .layer(TraceLayer::new_for_http())
         .with_state(App::new(GithubToken(Arc::new(github_secret))));
